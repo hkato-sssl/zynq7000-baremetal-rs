@@ -1,0 +1,34 @@
+[package]
+authors = [
+	"Hidekazu Kato <hkato.sssl@gmail.com>",
+]
+name = "zynq-baremetal"
+default-run = "hello"
+description = "Rust Bare-Metal Environment for ZYNQ-7000"
+version = "0.1.0"
+edition = "2024"
+publish = false
+repository = ""
+
+[dependencies]
+aarch32-cpu = { version = "0.4.0", features = ["critical-section-multi-core"] }
+aarch32-rt = "0.5.0"
+zynq7000 = "0.5.0"
+zynq7000-hal = "0.2.0"
+arbitrary-int = "2.1.1"
+bitbybit = "2.0.1"
+critical-section = "1.2.0"
+derive-mmio = "0.8.0"
+defmt = { version = "1", optional = true }
+
+[build-dependencies]
+arm-targets = { version = "0.4.3" }
+
+[features]
+default = ["uart-console-shared"]
+defmt = ["dep:defmt", "arbitrary-int/defmt"]
+uart-console-shared = []
+uart-console-exclusive = []
+
+eabi-fpu = ["aarch32-rt/eabi-fpu"]
+fpu-d32 = ["aarch32-rt/fpu-d32"]
