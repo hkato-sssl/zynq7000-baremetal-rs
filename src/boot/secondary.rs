@@ -50,5 +50,5 @@ fn setup_secondary_boot_vector() {
         }
     }
 
-    crate::cache::clean(VECTOR_ADDR as u32);
+    crate::cache::d_clean(VECTOR_ADDR as u32);
 }
