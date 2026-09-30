@@ -1,5 +1,4 @@
 pub mod abt_handler;
-pub mod irq_handler;
 pub mod svc_handler;
 pub mod und_handler;
 
