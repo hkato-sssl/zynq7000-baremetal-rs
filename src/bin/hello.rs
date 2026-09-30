@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-use aarch32_rt::entry;
 use zynq::println;
 use zynq_baremetal as zynq;
 
@@ -17,7 +16,7 @@ fn uart_test() {
     }
 }
 
-#[entry]
+#[aarch32_rt::entry]
 fn main() -> ! {
     zynq::init();
 
