@@ -17,7 +17,7 @@ pub use mmu_ref as mmu;
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     unsafe {
-        debug::set_rgb(aarch32_cpu::asm::core_id(), true, false, false);
+        debug::rgb::set(aarch32_cpu::asm::core_id(), true, false, false);
     }
     crate::println!("PANIC: {:#?}", info);
     loop {}
@@ -25,7 +25,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 pub fn init() {
     cpu::init();
-    debug::init();
     mmu::init();
     mmu::enable_mmu_and_cache();
     if aarch32_cpu::asm::core_id() == 0 {
