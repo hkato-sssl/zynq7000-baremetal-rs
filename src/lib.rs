@@ -8,10 +8,8 @@ pub mod device;
 pub mod driver;
 pub mod exception;
 pub mod macros;
-pub mod mmu_ref;
+pub mod mmu;
 pub mod pl;
-
-pub use mmu_ref as mmu;
 
 #[cfg(target_os = "none")]
 #[panic_handler]
