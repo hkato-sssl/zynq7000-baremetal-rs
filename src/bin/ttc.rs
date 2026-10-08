@@ -10,7 +10,7 @@ use zynq7000_hal::SpiInterrupt;
 use zynq7000_hal::gic::{Interrupt, InterruptGuard, LOWEST_PRIORITY, TargetCpus};
 use zynq7000_hal::ttc::{Ttc, TtcChannel};
 
-use zynq_baremetal as zynq;
+use zynq7000_baremetal as zynq;
 
 const CPU_1X: u32 = 111_111_111;
 

@@ -2,7 +2,7 @@
 authors = [
 	"Hidekazu Kato <hkato.sssl@gmail.com>",
 ]
-name = "zynq-baremetal"
+name = "zynq7000-baremetal"
 default-run = "hello"
 description = "Rust Bare-Metal Environment for ZYNQ-7000"
 version = "0.1.0"

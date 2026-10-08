@@ -2,7 +2,7 @@
 #![no_main]
 
 use zynq::println;
-use zynq_baremetal as zynq;
+use zynq7000_baremetal as zynq;
 
 fn uart_test() {
     let core = aarch32_cpu::asm::core_id();

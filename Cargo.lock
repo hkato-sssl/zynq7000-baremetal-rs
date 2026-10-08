@@ -495,7 +495,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "zynq-baremetal"
+name = "zynq7000"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9455a2e038e49ffe98032d7a182f1ae28ce272e8664c9f6ced4c75d5c3c88f1"
+dependencies = [
+ "arbitrary-int",
+ "bitbybit",
+ "derive-mmio",
+ "once_cell",
+ "rustversion",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "zynq7000-baremetal"
 version = "0.1.0"
 dependencies = [
  "aarch32-cpu",
@@ -510,21 +525,6 @@ dependencies = [
  "paste",
  "zynq7000",
  "zynq7000-hal",
-]
-
-[[package]]
-name = "zynq7000"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9455a2e038e49ffe98032d7a182f1ae28ce272e8664c9f6ced4c75d5c3c88f1"
-dependencies = [
- "arbitrary-int",
- "bitbybit",
- "derive-mmio",
- "once_cell",
- "rustversion",
- "static_assertions",
- "thiserror",
 ]
 
 [[package]]
