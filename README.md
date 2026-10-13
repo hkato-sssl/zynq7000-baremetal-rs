@@ -405,3 +405,8 @@ The BIN image is around 2 MiB. The cause is the `L1Table` type used in `mmu.rs`.
 Aligning these two data objects makes the `.data` section 2 MiB in size.
 
 If the size is a concern, the way `SYS_L1_PAGE_TABLE` is generated needs to be changed.
+
+# Related Article
+
+https://qiita.com/hkato-sssl/items/a66dbb4f533f0adda416
+
