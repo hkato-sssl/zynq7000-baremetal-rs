@@ -22,6 +22,7 @@ derive-mmio = "0.8.0"
 defmt = { version = "1", optional = true }
 paste = "1"
 heapless = "0.9.0"
+serde = { version = "1", features = ["derive"], default-features = false, optional = true }
 
 [build-dependencies]
 arm-targets = { version = "0.4.3" }
@@ -29,6 +30,7 @@ arm-targets = { version = "0.4.3" }
 [features]
 default = ["uart-console-shared"]
 defmt = ["dep:defmt", "arbitrary-int/defmt"]
+serde = ["dep:serde", "arbitrary-int/serde"]
 uart-console-shared = []
 uart-console-exclusive = []
 

@@ -24,7 +24,6 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 pub fn init() {
     cpu::init();
     mmu::init();
-    mmu::enable_mmu_and_cache();
     if aarch32_cpu::asm::core_id() == 0 {
         cache::l2::init();
     }
