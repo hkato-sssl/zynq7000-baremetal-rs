@@ -35,7 +35,10 @@ pub mod gicc {
     pub unsafe fn dump() {
         use crate::println;
         let gicc = unsafe { zynq7000::gic::CpuInterfaceRegisters::new_mmio_fixed() };
-        println!("#### GIC CPU#{} Interface Registers ####", aarch32_cpu::asm::core_id());
+        println!(
+            "#### GIC CPU#{} Interface Registers ####",
+            aarch32_cpu::asm::core_id()
+        );
         println!("{:>13}: {:08X}", "ICCICR", gicc.read_icr().raw_value());
         println!("{:>13}: {:08X}", "ICCPMR", gicc.read_pmr().raw_value());
         println!("{:>13}: {:08X}", "ICCBPR", gicc.read_bpr());
