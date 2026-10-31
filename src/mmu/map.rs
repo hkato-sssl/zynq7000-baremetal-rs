@@ -1,5 +1,5 @@
 use crate::cpu::register::TlbIMvaIs;
-use crate::mmu::pool::sys_alloc_page_table;
+use crate::mmu::page_table_pool::sys_alloc_page_table;
 use arbitrary_int::{u2, u3, u4, u12, u20, u22};
 use core::cell::RefCell;
 use core::cell::UnsafeCell;

@@ -1,7 +1,7 @@
 mod asm;
 mod init;
 mod map;
-mod pool;
+mod page_table_pool;
 
 pub use aarch32_cpu::mmu::AccessPermissions;
 pub use aarch32_cpu::mmu::AccessPermissions::*;

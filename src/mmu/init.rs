@@ -82,7 +82,7 @@ pub fn init() {
     crate::mmu::asm::enable_mmu_and_cache();
 
     if aarch32_cpu::asm::core_id() == 0 {
-        crate::mmu::pool::init();
+        crate::mmu::page_table_pool::init();
         critical_section::with(|cs| {
             SYS_MMU.borrow(cs).replace(Some(&SYS_L1_PAGE_TABLE));
         });
