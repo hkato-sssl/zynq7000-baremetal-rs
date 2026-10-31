@@ -27,27 +27,45 @@ pub enum MmuError {
     Others,
 }
 
+#[derive(PartialEq, Eq)]
 enum L1Descriptor {
     Invalid,
     Section,
     PageTable(PageTableDesc),
+    SuperSection,
     Reserved,
 }
 
 impl L1Descriptor {
     fn new(desc: u32) -> Self {
-        if (desc & 0b10) == 0 {
-            if (desc & 0x01) == 0 {
-                L1Descriptor::Invalid
-            } else {
-                L1Descriptor::PageTable(PageTableDesc::new_with_raw_value(desc))
+        match desc & 0b11 {
+            0b00 => L1Descriptor::Invalid,
+            0b01 => L1Descriptor::PageTable(PageTableDesc::new_with_raw_value(desc)),
+            0b10 => {
+                if (desc & 0x40000) == 0 {
+                    L1Descriptor::Section
+                } else {
+                    L1Descriptor::SuperSection
+                }
             }
-        } else {
-            if (desc & 0x40001) == 0 {
-                L1Descriptor::Section
-            } else {
-                L1Descriptor::Reserved
-            }
+            _ => L1Descriptor::Reserved,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq)]
+enum L2Descriptor {
+    Invalid,
+    LargePage,
+    Page,
+}
+
+impl L2Descriptor {
+    fn new(desc: u32) -> Self {
+        match desc & 0b11 {
+            0b00 => L2Descriptor::Invalid,
+            0b01 => L2Descriptor::LargePage,
+            _ => L2Descriptor::Page,
         }
     }
 }
@@ -187,6 +205,70 @@ impl SectionDesc {
     }
 }
 
+#[bitbybit::bitfield(u32, default = 0x40002, defmt_fields(feature = "defmt"))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(PartialEq, Eq)]
+pub struct SuperSectionDesc {
+    /// SectionDesc base address upper bits.
+    #[bits(24..=31, rw)]
+    base_addr: u8,
+    /// Non-secure bit.
+    #[bit(19, rw)]
+    ns: bool,
+    /// Non-global bit.
+    #[bit(17, rw)]
+    ng: bool,
+    /// Shareable bit.
+    #[bit(16, rw)]
+    s: bool,
+    /// Access permissions bit[2].
+    #[bit(15, rw)]
+    apx: bool,
+    /// Part of memory region attributes.
+    #[bits(12..=14, rw)]
+    tex: u3,
+    /// Access permissions bits[1:0].
+    #[bits(10..=11, rw)]
+    ap: u2,
+    /// Execute-never bit.
+    #[bit(4, rw)]
+    xn: bool,
+    /// Part of memory region attributes.
+    #[bit(3, rw)]
+    c: bool,
+    /// Part of memory region attributes.
+    #[bit(2, rw)]
+    b: bool,
+}
+
+impl SuperSectionDesc {
+    pub fn new_with_addr(paddr: usize, attrs: &MapAttributes) -> Self {
+        #[cfg(debug_assertions)]
+        if attrs.domain != u4::new(0) {
+            panic!("Unsupported domain");
+        }
+        let mem_attrs = MemAttrs::decode(&attrs.memory_attrs);
+        // AP=0b111 is not supported on ZYNQ-7000
+        let ap = if attrs.access == AccessPermissions::ReadOnly {
+            AccessPermissions::ReadOnlyv6
+        } else {
+            attrs.access
+        };
+        Self::builder()
+            .with_base_addr((paddr >> 24) as u8)
+            .with_ns(attrs.non_secure)
+            .with_ng(attrs.non_global)
+            .with_s(attrs.shareable)
+            .with_apx(ap.apx())
+            .with_tex(mem_attrs.tex)
+            .with_ap(ap.ap())
+            .with_xn(attrs.execute_never)
+            .with_c(mem_attrs.c)
+            .with_b(mem_attrs.b)
+            .build()
+    }
+}
+
 #[bitbybit::bitfield(u32, default = 0b01, defmt_fields(feature = "defmt"))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(PartialEq, Eq)]
@@ -241,18 +323,84 @@ pub struct PageDesc {
     /// Part of memory region attributes.
     #[bit(2, rw)]
     b: bool,
+    /// Execute-never bit.
+    #[bit(0, rw)]
+    xn: bool,
 }
 
 impl PageDesc {
-    pub const fn new_with_addr(addr: usize, attrs: &MapAttributes) -> Self {
+    pub fn new_with_addr(addr: usize, attrs: &MapAttributes) -> Self {
         let mem_attrs = MemAttrs::decode(&attrs.memory_attrs);
+        // AP=0b111 is not supported on ZYNQ-7000
+        let ap = if attrs.access == AccessPermissions::ReadOnly {
+            AccessPermissions::ReadOnlyv6
+        } else {
+            attrs.access
+        };
         Self::builder()
             .with_base_addr(u20::new((addr >> 12) as u32))
             .with_ng(attrs.non_global)
             .with_s(attrs.shareable)
-            .with_apx(attrs.access.apx())
+            .with_apx(ap.apx())
             .with_tex(mem_attrs.tex)
-            .with_ap(attrs.access.ap())
+            .with_ap(ap.ap())
+            .with_c(mem_attrs.c)
+            .with_b(mem_attrs.b)
+            .with_xn(attrs.execute_never)
+            .build()
+    }
+}
+
+#[bitbybit::bitfield(u32, default = 0b01, defmt_fields(feature = "defmt"))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(PartialEq, Eq)]
+pub struct LargePageDesc {
+    /// Page base address.
+    #[bits(16..=31, rw)]
+    base_addr: u16,
+    /// Execute-never bit.
+    #[bit(15, rw)]
+    xn: bool,
+    /// Part of memory region attributes.
+    #[bits(12..=14, rw)]
+    tex: u3,
+    /// Non-global bit.
+    #[bit(11, rw)]
+    ng: bool,
+    /// Shareable bit.
+    #[bit(10, rw)]
+    s: bool,
+    /// Access permissions bit[2].
+    #[bit(9, rw)]
+    apx: bool,
+    /// Access permissions bits[1:0].
+    #[bits(4..=5, rw)]
+    ap: u2,
+    /// Part of memory region attributes.
+    #[bit(3, rw)]
+    c: bool,
+    /// Part of memory region attributes.
+    #[bit(2, rw)]
+    b: bool,
+}
+
+impl LargePageDesc {
+    pub fn new_with_addr(addr: usize, attrs: &MapAttributes) -> Self {
+        let mem_attrs = MemAttrs::decode(&attrs.memory_attrs);
+        // AP=0b111 is not supported on ZYNQ-7000
+        let ap = if attrs.access == AccessPermissions::ReadOnly {
+            AccessPermissions::ReadOnlyv6
+        } else {
+            attrs.access
+        };
+        Self::builder()
+            .with_base_addr((addr >> 16) as u16)
+            .with_xn(attrs.execute_never)
+            .with_tex(mem_attrs.tex)
+            .with_ng(attrs.non_global)
+            .with_s(attrs.shareable)
+            .with_apx(ap.apx())
+            .with_ap(ap.ap())
             .with_c(mem_attrs.c)
             .with_b(mem_attrs.b)
             .build()
@@ -275,6 +423,27 @@ impl<'a> PageTable<'a> {
         }
     }
 
+    fn map_large_page(
+        &mut self,
+        vaddr: usize,
+        paddr: usize,
+        attrs: &MapAttributes,
+    ) -> Result<(), MmuError> {
+        let idx = l2_index(vaddr);
+        for i in idx..(idx + 16) {
+            let desc = L2Descriptor::new(self.descs[i]);
+            if desc != L2Descriptor::Invalid {
+                return Err(MmuError::AlreadyMapped);
+            }
+        }
+
+        let desc = LargePageDesc::new_with_addr(paddr, attrs).raw_value();
+        for i in idx..(idx + 16) {
+            self.write_desc(i, desc);
+        }
+        Ok(())
+    }
+
     fn map_page(
         &mut self,
         vaddr: usize,
@@ -282,20 +451,24 @@ impl<'a> PageTable<'a> {
         attrs: &MapAttributes,
     ) -> Result<(), MmuError> {
         let idx = l2_index(vaddr);
-        let desc = self.descs[idx];
-        if (desc & 0b11) == 0 {
-            let desc = PageDesc::new_with_addr(paddr, attrs);
-            self.descs[idx] = desc.raw_value();
-
-            let sctlr = aarch32_cpu::register::Sctlr::read();
-            if sctlr.c() && sctlr.m() {
-                let addr = unsafe { self.descs.as_ptr().add(idx) as u32 };
-                crate::cache::d_clean(addr);
+        let desc = L2Descriptor::new(self.descs[idx]);
+        match desc {
+            L2Descriptor::Invalid => {
+                let desc = PageDesc::new_with_addr(paddr, attrs);
+                self.write_desc(idx, desc.raw_value());
+                Ok(())
             }
+            _ => Err(MmuError::AlreadyMapped),
+        }
+    }
 
-            Ok(())
-        } else {
-            Err(MmuError::AlreadyMapped)
+    fn write_desc(&mut self, idx: usize, desc: u32) {
+        let descs = self.descs.as_mut_ptr() as *mut u32;
+        let addr = unsafe { descs.add(idx) };
+        unsafe { addr.write_volatile(desc) };
+
+        if is_mmu_enabled() {
+            crate::cache::d_clean(addr as u32);
         }
     }
 }
@@ -343,7 +516,16 @@ impl<const N: usize> L1Table<N> {
         remap: bool,
     ) -> Result<(), MmuError> {
         while size > 0 {
-            if (size >= SECTION_SIZE)
+            if !remap
+                && (size >= SUPER_SECTION_SIZE)
+                && is_aligned(vaddr, SUPER_SECTION_SIZE)
+                && is_aligned(paddr, SUPER_SECTION_SIZE)
+            {
+                self.map_super_section(vaddr, paddr, attrs)?;
+                vaddr += SUPER_SECTION_SIZE;
+                paddr += SUPER_SECTION_SIZE;
+                size -= SUPER_SECTION_SIZE;
+            } else if (size >= SECTION_SIZE)
                 && is_aligned(vaddr, SECTION_SIZE)
                 && is_aligned(paddr, SECTION_SIZE)
             {
@@ -351,12 +533,43 @@ impl<const N: usize> L1Table<N> {
                 vaddr += SECTION_SIZE;
                 paddr += SECTION_SIZE;
                 size -= SECTION_SIZE;
+            } else if !remap
+                && (size >= LARGE_PAGE_SIZE)
+                && is_aligned(vaddr, LARGE_PAGE_SIZE)
+                && is_aligned(paddr, LARGE_PAGE_SIZE)
+            {
+                self.map_large_page(vaddr, paddr, attrs)?;
+                vaddr += LARGE_PAGE_SIZE;
+                paddr += LARGE_PAGE_SIZE;
+                size -= LARGE_PAGE_SIZE;
             } else {
                 self.map_page(vaddr, paddr, attrs)?;
                 vaddr += PAGE_SIZE;
                 paddr += PAGE_SIZE;
                 size -= PAGE_SIZE;
             }
+        }
+        Ok(())
+    }
+
+    fn map_super_section(
+        &self,
+        vaddr: usize,
+        paddr: usize,
+        attrs: &MapAttributes,
+    ) -> Result<(), MmuError> {
+        let entries = self.entries();
+        let idx = l1_index(vaddr);
+        for i in idx..(idx + 16) {
+            let desc = L1Descriptor::new(entries[i]);
+            if desc != L1Descriptor::Invalid {
+                return Err(MmuError::AlreadyMapped);
+            }
+        }
+
+        let desc = SuperSectionDesc::new_with_addr(paddr, attrs).raw_value();
+        for i in idx..(idx + 16) {
+            self.write_desc(i, desc);
         }
         Ok(())
     }
@@ -386,6 +599,38 @@ impl<const N: usize> L1Table<N> {
                     Err(MmuError::AlreadyMapped)
                 }
             }
+            L1Descriptor::SuperSection => Err(MmuError::AlreadyMapped),
+            _ => Err(MmuError::Others),
+        }
+    }
+
+    fn map_large_page(
+        &self,
+        vaddr: usize,
+        paddr: usize,
+        attrs: &MapAttributes,
+    ) -> Result<(), MmuError> {
+        let entries = self.entries();
+        let idx = l1_index(vaddr);
+        let desc = L1Descriptor::new(entries[idx]);
+        match desc {
+            L1Descriptor::PageTable(desc) => {
+                if desc.ns() == attrs.non_secure && desc.domain() == attrs.domain {
+                    let mut page_table = PageTable::new_with_descriptor(desc);
+                    page_table.map_large_page(vaddr, paddr, attrs)
+                } else {
+                    Err(MmuError::SecureFault)
+                }
+            }
+            L1Descriptor::Invalid => {
+                let mut page_table = sys_alloc_page_table()?;
+                page_table.map_large_page(vaddr, paddr, attrs).map(|_| {
+                    let desc = PageTableDesc::new_with_page_table(&page_table, attrs).raw_value();
+                    self.write_desc(idx, desc)
+                })
+            }
+            L1Descriptor::Section => Err(MmuError::AlreadyMapped),
+            L1Descriptor::SuperSection => Err(MmuError::AlreadyMapped),
             _ => Err(MmuError::Others),
         }
     }
@@ -411,6 +656,7 @@ impl<const N: usize> L1Table<N> {
                 })
             }
             L1Descriptor::Section => Err(MmuError::AlreadyMapped),
+            L1Descriptor::SuperSection => Err(MmuError::AlreadyMapped),
             _ => Err(MmuError::Others),
         }
     }
@@ -447,8 +693,7 @@ impl<const N: usize> L1Table<N> {
         let addr = unsafe { descs.add(idx) };
         unsafe { addr.write_volatile(desc) };
 
-        let sctlr = aarch32_cpu::register::Sctlr::read();
-        if sctlr.c() && sctlr.m() {
+        if is_mmu_enabled() {
             crate::cache::d_clean(addr as u32);
         }
     }
@@ -481,6 +726,11 @@ const fn l1_index(vaddr: usize) -> usize {
 
 const fn l2_index(vaddr: usize) -> usize {
     (vaddr >> 12) & 0xFF
+}
+
+fn is_mmu_enabled() -> bool {
+    let sctlr = aarch32_cpu::register::Sctlr::read();
+    sctlr.c() && sctlr.m()
 }
 
 pub fn map(vaddr: usize, paddr: usize, size: usize, attrs: &MapAttributes) -> Result<(), MmuError> {
