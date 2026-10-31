@@ -20,7 +20,9 @@ const MAX_L1_ENTRIES: usize = 4096;
 const NUM_L2_ENTRIES: usize = 256;
 
 pub const SECTION_SIZE: usize = 1024 * 1024;
+pub const SUPER_SECTION_SIZE: usize = 16 * SECTION_SIZE;
 pub const PAGE_SIZE: usize = 4 * 1024;
+pub const LARGE_PAGE_SIZE: usize = 64 * 1024;
 
 pub unsafe fn debug() {
     let entries = unsafe { &*map::SYS_L1_PAGE_TABLE.entries.get() };
