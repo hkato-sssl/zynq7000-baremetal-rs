@@ -517,6 +517,7 @@ impl<const N: usize> L1Table<N> {
     ) -> Result<(), MmuError> {
         while size > 0 {
             if !remap
+                && attrs.domain == u4::new(0)
                 && (size >= SUPER_SECTION_SIZE)
                 && is_aligned(vaddr, SUPER_SECTION_SIZE)
                 && is_aligned(paddr, SUPER_SECTION_SIZE)
