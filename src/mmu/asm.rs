@@ -1,4 +1,4 @@
-const DACR: u32 = 0xFFFFFFFD; // Domain0: Client, Others: Manager
+const DACR: u32 = 0x00000001; // Domain0: Client, Others: No access
 const ACTLR_SMP_FW: u32 = (1 << 6) | 1;
 const SCTLR_IZCM: u32 = (1 << 12) | (1 << 11) | (1 << 2) | 1;
 
