@@ -1,12 +1,12 @@
 use crate::cpu::register::TlbIMvaIs;
 use crate::mmu::page_table_pool::sys_alloc_page_table;
+use crate::mmu::*;
+
 use arbitrary_int::{u2, u3, u4, u12, u20, u22};
 use core::cell::RefCell;
 use core::cell::UnsafeCell;
 use core::result::Result;
 use critical_section::Mutex;
-
-use crate::mmu::*;
 
 pub static SYS_L1_PAGE_TABLE: L1Table<MAX_L1_ENTRIES> = L1Table {
     entries: UnsafeCell::new([0u32; MAX_L1_ENTRIES]),
@@ -659,20 +659,6 @@ impl<const N: usize> L1Table<N> {
             L1Descriptor::Section => Err(MmuError::AlreadyMapped),
             L1Descriptor::SuperSection => Err(MmuError::AlreadyMapped),
             _ => Err(MmuError::Others),
-        }
-    }
-
-    fn _get_page_table(&self, vaddr: usize) -> Result<PageTable<'_>, MmuError> {
-        let entries = self.entries();
-        let idx = l1_index(vaddr);
-        let desc = entries[idx];
-        if (desc & 0b11) == 0b01 {
-            let desc = PageTableDesc::new_with_raw_value(desc);
-            Ok(PageTable::new_with_descriptor(desc))
-        } else if (desc & 0b11) == 0b00 {
-            sys_alloc_page_table()
-        } else {
-            Err(MmuError::AlreadyMapped)
         }
     }
 
