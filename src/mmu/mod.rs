@@ -5,6 +5,7 @@ mod page_table_pool;
 
 pub use aarch32_cpu::mmu::AccessPermissions;
 pub use aarch32_cpu::mmu::AccessPermissions::*;
+pub use aarch32_cpu::mmu::CachePolicy;
 pub use aarch32_cpu::mmu::CachePolicy::*;
 pub use aarch32_cpu::mmu::L1EntryType;
 pub use aarch32_cpu::mmu::MemoryRegionAttributes;

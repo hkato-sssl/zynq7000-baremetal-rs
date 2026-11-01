@@ -71,6 +71,12 @@ pub fn init() {
         build_initial_l1_table(&SYS_L1_PAGE_TABLE);
     }
 
+    // Set ASID to 0.
+    let ctxidr = aarch32_cpu::register::Contextidr(0);
+    unsafe {
+        aarch32_cpu::register::Contextidr::write(ctxidr);
+    }
+
     let ttbr0 = aarch32_cpu::register::Ttbr0::new_with_raw_value(0)
         .with_address(core::ptr::addr_of!(SYS_L1_PAGE_TABLE) as usize)
         .with_irgn(false)

@@ -1,12 +1,12 @@
 use crate::cpu::register::TlbIMvaIs;
 use crate::mmu::page_table_pool::sys_alloc_page_table;
+use crate::mmu::*;
+
 use arbitrary_int::{u2, u3, u4, u12, u20, u22};
 use core::cell::RefCell;
 use core::cell::UnsafeCell;
 use core::result::Result;
 use critical_section::Mutex;
-
-use crate::mmu::*;
 
 pub static SYS_L1_PAGE_TABLE: L1Table<MAX_L1_ENTRIES> = L1Table {
     entries: UnsafeCell::new([0u32; MAX_L1_ENTRIES]),
@@ -449,6 +449,7 @@ impl<'a> PageTable<'a> {
         vaddr: usize,
         paddr: usize,
         attrs: &MapAttributes,
+        remap: bool,
     ) -> Result<(), MmuError> {
         let idx = l2_index(vaddr);
         let desc = L2Descriptor::new(self.descs[idx]);
@@ -456,6 +457,10 @@ impl<'a> PageTable<'a> {
             L2Descriptor::Invalid => {
                 let desc = PageDesc::new_with_addr(paddr, attrs);
                 self.write_desc(idx, desc.raw_value());
+                Ok(())
+            }
+            L2Descriptor::Page if remap => {
+                self.update_page(vaddr, paddr, attrs);
                 Ok(())
             }
             _ => Err(MmuError::AlreadyMapped),
@@ -470,6 +475,19 @@ impl<'a> PageTable<'a> {
         if is_mmu_enabled() {
             crate::cache::d_clean(addr as u32);
         }
+    }
+
+    fn update_page(&mut self, vaddr: usize, paddr: usize, attrs: &MapAttributes) {
+        const INVALID_PAGE: u32 = 0;
+        let idx = l2_index(vaddr);
+        let desc = PageDesc::new_with_addr(paddr, attrs);
+
+        // Update a page descriptor using break-before-make.
+
+        self.write_desc(idx, INVALID_PAGE);
+        TlbIMvaIs::write(vaddr as u32);
+        aarch32_cpu::asm::dsb();
+        self.write_desc(idx, desc.raw_value());
     }
 }
 
@@ -544,7 +562,7 @@ impl<const N: usize> L1Table<N> {
                 paddr += LARGE_PAGE_SIZE;
                 size -= LARGE_PAGE_SIZE;
             } else {
-                self.map_page(vaddr, paddr, attrs)?;
+                self.map_page(vaddr, paddr, attrs, remap)?;
                 vaddr += PAGE_SIZE;
                 paddr += PAGE_SIZE;
                 size -= PAGE_SIZE;
@@ -636,7 +654,13 @@ impl<const N: usize> L1Table<N> {
         }
     }
 
-    fn map_page(&self, vaddr: usize, paddr: usize, attrs: &MapAttributes) -> Result<(), MmuError> {
+    fn map_page(
+        &self,
+        vaddr: usize,
+        paddr: usize,
+        attrs: &MapAttributes,
+        remap: bool,
+    ) -> Result<(), MmuError> {
         let entries = self.entries();
         let idx = l1_index(vaddr);
         let desc = L1Descriptor::new(entries[idx]);
@@ -644,14 +668,14 @@ impl<const N: usize> L1Table<N> {
             L1Descriptor::PageTable(desc) => {
                 if desc.ns() == attrs.non_secure && desc.domain() == attrs.domain {
                     let mut page_table = PageTable::new_with_descriptor(desc);
-                    page_table.map_page(vaddr, paddr, attrs)
+                    page_table.map_page(vaddr, paddr, attrs, remap)
                 } else {
                     Err(MmuError::SecureFault)
                 }
             }
             L1Descriptor::Invalid => {
                 let mut page_table = sys_alloc_page_table()?;
-                page_table.map_page(vaddr, paddr, attrs).map(|_| {
+                page_table.map_page(vaddr, paddr, attrs, remap).map(|_| {
                     let desc = PageTableDesc::new_with_page_table(&page_table, attrs).raw_value();
                     self.write_desc(idx, desc)
                 })
@@ -659,20 +683,6 @@ impl<const N: usize> L1Table<N> {
             L1Descriptor::Section => Err(MmuError::AlreadyMapped),
             L1Descriptor::SuperSection => Err(MmuError::AlreadyMapped),
             _ => Err(MmuError::Others),
-        }
-    }
-
-    fn _get_page_table(&self, vaddr: usize) -> Result<PageTable<'_>, MmuError> {
-        let entries = self.entries();
-        let idx = l1_index(vaddr);
-        let desc = entries[idx];
-        if (desc & 0b11) == 0b01 {
-            let desc = PageTableDesc::new_with_raw_value(desc);
-            Ok(PageTable::new_with_descriptor(desc))
-        } else if (desc & 0b11) == 0b00 {
-            sys_alloc_page_table()
-        } else {
-            Err(MmuError::AlreadyMapped)
         }
     }
 
